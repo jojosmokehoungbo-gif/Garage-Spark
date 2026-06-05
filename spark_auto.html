@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPARK AUTO — Diagnostic System</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --yellow: #F5C400;
+    --yellow-dim: #C49A00;
+    --yellow-glow: rgba(245,196,0,0.15);
+    --black: #0A0A08;
+    --black-2: #111110;
+    --black-3: #1A1A17;
+    --white: #F0EDE4;
+    --white-dim: rgba(240,237,228,0.6);
+    --white-ghost: rgba(240,237,228,0.08);
+    --mono: 'Share Tech Mono', monospace;
+    --cond: 'Barlow Condensed', sans-serif;
+    --body: 'Barlow', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: var(--body);
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    background: rgba(10,10,8,0.95);
+    border-bottom: 1px solid rgba(245,196,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: 56px;
+    backdrop-filter: blur(12px);
+  }
+
+  .nav-logo { display: flex; align-items: baseline; gap: 8px; }
+  .nav-logo .label { font-family: var(--mono); font-size: 9px; color: var(--yellow); letter-spacing: 0.2em; text-transform: uppercase; }
+  .nav-logo .wordmark { font-family: var(--cond); font-size: 22px; font-weight: 900; letter-spacing: 0.05em; color: var(--white); }
+  .nav-logo .wordmark span { color: var(--yellow); }
+
+  .nav-status { display: flex; align-items: center; gap: 1.5rem; }
+
+  .status-dot { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--white-dim); letter-spacing: 0.1em; }
+  .status-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--yellow); animation: pulse 2s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-dim); text-decoration: none; transition: color 0.2s; position: relative; }
+  .nav-links a::before { content: '//'; margin-right: 4px; color: var(--yellow); opacity: 0; transition: opacity 0.2s; }
+  .nav-links a:hover { color: var(--white); }
+  .nav-links a:hover::before { opacity: 1; }
+
+  .nav-cta { background: var(--yellow); color: var(--black); font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; padding: 8px 16px; border: none; cursor: pointer; font-weight: 700; transition: background 0.2s, transform 0.1s; clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%); text-decoration: none; }
+  .nav-cta:hover { background: #FFD600; transform: scaleX(1.03); }
+
+  #boot { min-height: 100vh; padding-top: 56px; display: grid; grid-template-columns: 1fr 1fr; position: relative; overflow: hidden; }
+
+  .boot-left { padding: 5rem 3rem 5rem 3rem; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid rgba(245,196,0,0.15); position: relative; }
+
+  .system-tag { font-family: var(--mono); font-size: 10px; color: var(--yellow); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 2rem; display: flex; align-items: center; gap: 12px; }
+  .system-tag::before { content: '▶'; font-size: 8px; }
+
+  .hero-title { font-family: var(--cond); font-size: clamp(52px, 8vw, 96px); font-weight: 900; line-height: 0.9; letter-spacing: -0.01em; margin-bottom: 1.5rem; }
+  .hero-title .line-2 { color: var(--yellow); display: block; -webkit-text-stroke: 1px var(--yellow); }
+  .hero-title .line-ghost { color: transparent; -webkit-text-stroke: 1px rgba(245,196,0,0.3); display: block; }
+
+  .hero-desc { font-size: 15px; color: var(--white-dim); line-height: 1.7; max-width: 400px; margin-bottom: 2.5rem; font-weight: 300; }
+
+  .cta-cluster { display: flex; flex-direction: column; gap: 12px; }
+
+  .cta-primary { display: inline-flex; align-items: center; gap: 12px; background: var(--yellow); color: var(--black); padding: 16px 28px; font-family: var(--cond); font-size: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; border: none; text-decoration: none; clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%); transition: all 0.2s; width: fit-content; }
+  .cta-primary:hover { background: #FFD600; transform: translateX(4px); }
+  .cta-primary .arrow { font-size: 20px; }
+
+  .cta-secondary { display: inline-flex; align-items: center; gap: 12px; color: var(--white-dim); font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; background: none; border: 1px solid rgba(245,196,0,0.2); padding: 12px 20px; text-decoration: none; width: fit-content; transition: all 0.2s; }
+  .cta-secondary:hover { border-color: var(--yellow); color: var(--yellow); }
+
+  .boot-right { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--black-2); }
+
+  .diagnostic-panel { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 2rem; position: relative; }
+
+  .diag-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--yellow); text-transform: uppercase; margin-bottom: 1.5rem; text-align: center; }
+
+  .gauge-ring { width: 220px; height: 220px; position: relative; margin: 0 auto 2rem; }
+  .gauge-ring svg { width: 100%; height: 100%; }
+  .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge-value { font-family: var(--cond); font-size: 44px; font-weight: 900; color: var(--yellow); line-height: 1; }
+  .gauge-unit { font-family: var(--mono); font-size: 9px; color: var(--white-dim); letter-spacing: 0.15em; text-transform: uppercase; }
+
+  .diag-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; width: 100%; background: rgba(245,196,0,0.1); border: 1px solid rgba(245,196,0,0.1); }
+
+  .diag-metric { background: var(--black-2); padding: 1rem; position: relative; }
+  .diag-metric::before { content: attr(data-id); position: absolute; top: 8px; right: 8px; font-family: var(--mono); font-size: 8px; color: rgba(245,196,0,0.3); letter-spacing: 0.1em; }
+  .metric-name { font-family: var(--mono); font-size: 9px; color: var(--white-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .metric-val { font-family: var(--cond); font-size: 22px; font-weight: 700; color: var(--white); }
+  .metric-val.active { color: var(--yellow); }
+  .metric-bar { height: 2px; background: rgba(245,196,0,0.1); margin-top: 8px; position: relative; overflow: hidden; }
+  .metric-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--yellow); animation: scan-bar 3s ease-in-out infinite; }
+
+  @keyframes scan-bar {
+    0% { width: 20%; opacity: 0.6; }
+    50% { width: 85%; opacity: 1; }
+    100% { width: 20%; opacity: 0.6; }
+  }
+
+  .sys-divider { display: flex; align-items: center; gap: 1rem; padding: 1.5rem 3rem; border-top: 1px solid rgba(245,196,0,0.1); border-bottom: 1px solid rgba(245,196,0,0.1); background: var(--black-3); }
+  .sys-divider-code { font-family: var(--mono); font-size: 9px; color: var(--yellow); letter-spacing: 0.2em; }
+  .sys-divider-line { flex: 1; height: 1px; background: linear-gradient(to right, rgba(245,196,0,0.3), transparent); }
+  .sys-divider-title { font-family: var(--cond); font-size: 13px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-dim); }
+
+  #modules { padding: 5rem 3rem; background: var(--black); }
+
+  .section-header { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 2rem; margin-bottom: 3rem; }
+  .section-index { font-family: var(--mono); font-size: 60px; font-weight: 400; color: rgba(245,196,0,0.15); line-height: 1; }
+  .section-code { font-family: var(--mono); font-size: 9px; letter-spacing: 0.25em; color: var(--yellow); text-transform: uppercase; margin-bottom: 8px; }
+  .section-title { font-family: var(--cond); font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: 0.02em; line-height: 1; text-transform: uppercase; }
+
+  .module-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: auto auto; gap: 1px; background: rgba(245,196,0,0.08); border: 1px solid rgba(245,196,0,0.08); }
+
+  .module { background: var(--black-2); padding: 2rem; position: relative; overflow: hidden; transition: background 0.3s; }
+  .module::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--yellow); transform: scaleX(0); transform-origin: left; transition: transform 0.4s ease; }
+  .module:hover { background: var(--black-3); }
+  .module:hover::before { transform: scaleX(1); }
+  .module.featured { grid-row: span 2; border-right: 1px solid rgba(245,196,0,0.1); }
+
+  @media (max-width: 600px) {
+    .module-grid { grid-template-columns: 1fr !important; grid-template-rows: auto !important; }
+    .module.featured { grid-row: span 1 !important; border-right: none !important; }
+    .module[style*="grid-column"] { grid-column: 1 !important; }
+  }
+
+  .module-id { font-family: var(--mono); font-size: 9px; color: var(--yellow); letter-spacing: 0.2em; margin-bottom: 1rem; }
+  .module-icon { font-size: 28px; margin-bottom: 1rem; display: block; }
+  .module-name { font-family: var(--cond); font-size: 20px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.75rem; line-height: 1.1; }
+  .module.featured .module-name { font-size: 28px; }
+  .module-desc { font-size: 13px; color: var(--white-dim); line-height: 1.6; font-weight: 300; }
+
+  .module-action { display: inline-flex; align-items: center; gap: 8px; margin-top: 1.5rem; font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--yellow); text-decoration: none; cursor: pointer; transition: gap 0.2s; }
+  .module-action:hover { gap: 14px; }
+
+  .module-specs { margin-top: 2rem; display: flex; flex-direction: column; gap: 8px; }
+  .spec-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(240,237,228,0.05); }
+  .spec-key { font-family: var(--mono); font-size: 9px; color: var(--white-dim); letter-spacing: 0.1em; }
+  .spec-val { font-family: var(--mono); font-size: 10px; color: var(--yellow); }
+
+  #flow { padding: 5rem 3rem; background: var(--black-3); position: relative; overflow: hidden; }
+  #flow::before { content: 'DIAGNOSTIC SEQUENCE'; position: absolute; top: 50%; right: -5%; transform: translateY(-50%) rotate(90deg); font-family: var(--cond); font-size: 80px; font-weight: 900; color: rgba(245,196,0,0.03); letter-spacing: 0.1em; pointer-events: none; white-space: nowrap; }
+
+  .flow-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 3rem; border: 1px solid rgba(245,196,0,0.1); }
+  .flow-step { padding: 2rem 1.5rem; border-right: 1px solid rgba(245,196,0,0.1); position: relative; overflow: hidden; }
+  .flow-step:last-child { border-right: none; }
+  .flow-step::after { content: '►'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--yellow); z-index: 2; }
+  .flow-step:last-child::after { display: none; }
+
+  .step-num { font-family: var(--mono); font-size: 48px; color: rgba(245,196,0,0.1); line-height: 1; margin-bottom: 1rem; font-weight: 400; }
+  .step-title { font-family: var(--cond); font-size: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--white); }
+  .step-desc { font-size: 12px; color: var(--white-dim); line-height: 1.6; }
+  .step-active { background: var(--yellow-glow); border-bottom: 2px solid var(--yellow); }
+  .step-active .step-num { color: var(--yellow); }
+  .step-active .step-title { color: var(--yellow); }
+
+  #academy { padding: 5rem 3rem; background: var(--black); position: relative; }
+  .academy-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 4rem; align-items: start; margin-top: 3rem; }
+  .academy-right { border: 1px solid rgba(245,196,0,0.15); background: var(--black-2); }
+
+  .course-list { list-style: none; }
+  .course-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(240,237,228,0.05); cursor: pointer; transition: background 0.2s; position: relative; }
+  .course-item:hover { background: rgba(245,196,0,0.05); }
+  .course-item.active-course { background: rgba(245,196,0,0.08); border-left: 3px solid var(--yellow); }
+  .course-num { font-family: var(--mono); font-size: 10px; color: var(--yellow); min-width: 24px; }
+  .course-name { font-family: var(--cond); font-size: 15px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .course-duration { font-family: var(--mono); font-size: 9px; color: var(--white-dim); letter-spacing: 0.1em; }
+
+  .academy-stat-panel { padding: 2rem; border-bottom: 1px solid rgba(245,196,0,0.1); }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: rgba(245,196,0,0.1); border: 1px solid rgba(245,196,0,0.1); margin-top: 1.5rem; }
+  .stat-cell { background: var(--black-3); padding: 1.25rem 1rem; text-align: center; }
+  .stat-val { font-family: var(--cond); font-size: 28px; font-weight: 900; color: var(--yellow); display: block; }
+  .stat-label { font-family: var(--mono); font-size: 8px; color: var(--white-dim); letter-spacing: 0.15em; text-transform: uppercase; display: block; margin-top: 4px; }
+
+  .enroll-block { padding: 1.5rem 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .enroll-text { font-size: 12px; color: var(--white-dim); font-weight: 300; line-height: 1.5; }
+  .enroll-btn { background: var(--yellow); color: var(--black); font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.15em; padding: 12px 20px; border: none; cursor: pointer; white-space: nowrap; text-transform: uppercase; clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%); transition: background 0.2s; text-decoration: none; }
+  .enroll-btn:hover { background: #FFD600; }
+
+  #signals { padding: 5rem 3rem; background: var(--black-3); }
+  .signal-log { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: rgba(245,196,0,0.08); margin-top: 3rem; }
+  .signal-entry { background: var(--black-2); padding: 2rem; position: relative; }
+  .signal-entry::before { content: '"'; position: absolute; top: 1rem; right: 1.5rem; font-family: var(--cond); font-size: 60px; color: rgba(245,196,0,0.1); line-height: 1; }
+  .signal-id { font-family: var(--mono); font-size: 8px; color: var(--yellow); letter-spacing: 0.2em; margin-bottom: 1rem; }
+  .signal-text { font-size: 13px; color: var(--white-dim); line-height: 1.7; margin-bottom: 1.5rem; font-weight: 300; font-style: italic; }
+  .signal-source { font-family: var(--cond); font-size: 14px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--white); }
+  .signal-role { font-family: var(--mono); font-size: 9px; color: var(--white-dim); letter-spacing: 0.1em; margin-top: 2px; }
+
+  #initiate { padding: 5rem 3rem; background: var(--black); position: relative; overflow: hidden; }
+  .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; margin-top: 3rem; align-items: center; }
+  .contact-desc { font-size: 14px; color: var(--white-dim); line-height: 1.7; font-weight: 300; margin-bottom: 2rem; max-width: 380px; }
+
+  .contact-channels { display: flex; flex-direction: column; gap: 1px; background: rgba(245,196,0,0.08); }
+  .channel { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: 1.25rem 1.5rem; background: var(--black-2); cursor: pointer; text-decoration: none; transition: background 0.2s; }
+  .channel:hover { background: rgba(245,196,0,0.05); }
+  .channel-icon { font-size: 20px; width: 36px; text-align: center; }
+  .channel-name { font-family: var(--cond); font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--white); }
+  .channel-handle { font-family: var(--mono); font-size: 10px; color: var(--white-dim); letter-spacing: 0.1em; }
+  .channel-arrow { font-size: 16px; color: var(--yellow); transition: transform 0.2s; }
+  .channel:hover .channel-arrow { transform: translateX(4px); }
+
+  .contact-right { border: 1px solid rgba(245,196,0,0.15); background: var(--black-2); padding: 2.5rem; }
+  .form-field { margin-bottom: 1.25rem; }
+  .form-label { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--yellow); margin-bottom: 8px; }
+  .form-input, .form-select, .form-textarea { width: 100%; background: var(--black-3); border: 1px solid rgba(245,196,0,0.15); color: var(--white); font-family: var(--mono); font-size: 12px; padding: 12px 14px; outline: none; transition: border-color 0.2s; appearance: none; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--yellow); }
+  .form-textarea { min-height: 100px; resize: vertical; }
+
+  .ticker { background: var(--yellow); overflow: hidden; height: 32px; display: flex; align-items: center; }
+  .ticker-inner { display: flex; gap: 4rem; animation: ticker 20s linear infinite; white-space: nowrap; }
+  @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  .ticker-item { font-family: var(--mono); font-size: 10px; color: var(--black); font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; flex-shrink: 0; }
+  .ticker-sep { color: rgba(0,0,0,0.4); margin: 0 0.5rem; }
+
+  .scroll-indicator { position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .scroll-line { width: 1px; height: 40px; background: linear-gradient(to bottom, var(--yellow), transparent); animation: scroll-pulse 2s infinite; }
+  @keyframes scroll-pulse { 0%, 100% { opacity: 0.3; transform: scaleY(0.8); } 50% { opacity: 1; transform: scaleY(1); } }
+  .scroll-label { font-family: var(--mono); font-size: 8px; color: var(--white-dim); letter-spacing: 0.2em; text-transform: uppercase; }
+
+  footer { background: var(--black-2); border-top: 1px solid rgba(245,196,0,0.2); padding: 2rem 3rem; display: flex; align-items: center; justify-content: space-between; }
+  .footer-brand { font-family: var(--cond); font-size: 18px; font-weight: 900; letter-spacing: 0.05em; }
+  .footer-brand span { color: var(--yellow); }
+  .footer-copy { font-family: var(--mono); font-size: 9px; color: var(--white-dim); letter-spacing: 0.15em; }
+  .footer-status { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9px; color: var(--yellow); letter-spacing: 0.1em; }
+  .footer-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--yellow); animation: pulse 2s infinite; }
+
+  @media (max-width: 900px) {
+    #boot { grid-template-columns: 1fr; }
+    .boot-right { min-height: 300px; }
+    .flow-steps { grid-template-columns: 1fr 1fr; }
+    .academy-layout { grid-template-columns: 1fr; }
+    .signal-log { grid-template-columns: 1fr; }
+    .contact-grid { grid-template-columns: 1fr; }
+    nav { padding: 0 1rem; }
+    .nav-links { display: none; }
+    .boot-left, #modules, #flow, #academy, #signals, #initiate { padding: 3rem 1.5rem; }
+    /* Services : 2 colonnes sur tablette */
+    .module-grid { grid-template-columns: 1fr 1fr !important; grid-template-rows: auto !important; }
+    .module.featured { grid-row: span 1 !important; grid-column: span 2 !important; border-right: none !important; }
+    .module[style*="grid-column"] { grid-column: span 2 !important; }
+  }
+
+  @media (max-width: 520px) {
+    /* Services : 1 colonne sur mobile */
+    .module-grid { grid-template-columns: 1fr !important; }
+    .module.featured { grid-column: 1 !important; }
+    .module[style*="grid-column"] { grid-column: 1 !important; }
+    .flow-steps { grid-template-columns: 1fr !important; }
+    .flow-step::after { display: none !important; }
+    .signal-log { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div>
+      <div class="label">Système // v4.2</div>
+      <div class="wordmark">GARAGE <span>SP▲RK</span></div>
+    </div>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#modules">Diagnostics</a></li>
+    <li><a href="#academy">Formation</a></li>
+    <li><a href="#flow">Processus</a></li>
+    <li><a href="#initiate">Contact</a></li>
+  </ul>
+  <div class="nav-status">
+    <span class="status-dot">SYSTÈME ACTIF</span>
+    <a href="https://wa.me/22890000000" class="nav-cta">▶ DÉMARRER</a>
+  </div>
+</nav>
+
+<div class="ticker" style="margin-top: 56px;">
+  <div class="ticker-inner">
+    <span class="ticker-item">Diagnostic moteur <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Mécatronique avancée <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Formation professionnelle <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Consultation véhicule <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Système OBD-II <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Afrique de l'Ouest <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Diagnostic moteur <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Mécatronique avancée <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Formation professionnelle <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Consultation véhicule <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Système OBD-II <span class="ticker-sep">◆</span></span>
+    <span class="ticker-item">Afrique de l'Ouest <span class="ticker-sep">◆</span></span>
+  </div>
+</div>
+
+<section id="boot">
+  <div class="boot-left">
+    <div class="system-tag">MODULE 01 — INITIALISATION SYSTÈME</div>
+    <h1 class="hero-title">
+      <span style="display:block; font-size: 0.45em; letter-spacing: 0.15em; font-weight: 300; color: var(--white-dim); margin-bottom: 0.5rem;">INTELLIGENCE</span>
+      MÉCANIQUE
+      <span class="line-2">AVANCÉE.</span>
+      <span class="line-ghost">PRÉCISION.</span>
+    </h1>
+    <p class="hero-desc">
+      SPARK AUTO est votre centre de diagnostic automobile de référence en Afrique de l'Ouest — atelier d'élite, académie de formation, et système de conseil technique intégré.
+    </p>
+    <div class="cta-cluster">
+      <a href="https://wa.me/22890000000" class="cta-primary">
+        <span>▶ DÉMARRER LE DIAGNOSTIC</span>
+        <span class="arrow">→</span>
+      </a>
+      <a href="#academy" class="cta-secondary">⬡ PROGRAMMES DE FORMATION</a>
+    </div>
+    <div class="scroll-indicator">
+      <div class="scroll-line"></div>
+      <span class="scroll-label">DÉFILER</span>
+    </div>
+  </div>
+
+  <div class="boot-right">
+    <div class="diagnostic-panel">
+      <div class="diag-label">// ANALYSE SYSTÈME EN COURS //</div>
+      <div class="gauge-ring">
+        <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="110" cy="110" r="95" stroke="rgba(245,196,0,0.08)" stroke-width="1"/>
+          <circle cx="110" cy="110" r="80" stroke="rgba(245,196,0,0.08)" stroke-width="0.5"/>
+          <g stroke="rgba(245,196,0,0.3)" stroke-width="1">
+            <line x1="110" y1="18" x2="110" y2="30"/>
+            <line x1="110" y1="190" x2="110" y2="202"/>
+            <line x1="18" y1="110" x2="30" y2="110"/>
+            <line x1="190" y1="110" x2="202" y2="110"/>
+            <line x1="42" y1="42" x2="51" y2="51"/>
+            <line x1="169" y1="42" x2="160" y2="51"/>
+            <line x1="42" y1="178" x2="51" y2="169"/>
+            <line x1="169" y1="178" x2="160" y2="169"/>
+          </g>
+          <circle cx="110" cy="110" r="95" stroke="rgba(245,196,0,0.15)" stroke-width="3" stroke-dasharray="597 597" stroke-linecap="butt" transform="rotate(-90 110 110)"/>
+          <circle cx="110" cy="110" r="95" stroke="#F5C400" stroke-width="3" stroke-dasharray="430 167" stroke-linecap="butt" transform="rotate(-90 110 110)">
+            <animate attributeName="stroke-dasharray" values="100 497;430 167;430 167" dur="3s" repeatCount="indefinite"/>
+          </circle>
+          <line x1="100" y1="110" x2="120" y2="110" stroke="rgba(245,196,0,0.4)" stroke-width="0.5"/>
+          <line x1="110" y1="100" x2="110" y2="120" stroke="rgba(245,196,0,0.4)" stroke-width="0.5"/>
+          <circle cx="110" cy="110" r="3" fill="#F5C400"/>
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-value" id="gauge-val">87</div>
+          <div class="gauge-unit">SYSTÈME OK</div>
+        </div>
+      </div>
+      <div class="diag-metrics">
+        <div class="diag-metric" data-id="CH01">
+          <div class="metric-name">Moteur</div>
+          <div class="metric-val active" id="m1">4,200 RPM</div>
+          <div class="metric-bar"><div class="metric-bar-fill" style="animation-delay: 0s;"></div></div>
+        </div>
+        <div class="diag-metric" data-id="CH02">
+          <div class="metric-name">Température</div>
+          <div class="metric-val" id="m2">92°C</div>
+          <div class="metric-bar"><div class="metric-bar-fill" style="animation-delay: 0.5s;"></div></div>
+        </div>
+        <div class="diag-metric" data-id="CH03">
+          <div class="metric-name">Pression huile</div>
+          <div class="metric-val" id="m3">3.8 BAR</div>
+          <div class="metric-bar"><div class="metric-bar-fill" style="animation-delay: 1s;"></div></div>
+        </div>
+        <div class="diag-metric" data-id="CH04">
+          <div class="metric-name">Batterie</div>
+          <div class="metric-val active" id="m4">14.2 V</div>
+          <div class="metric-bar"><div class="metric-bar-fill" style="animation-delay: 1.5s;"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sys-divider">
+  <span class="sys-divider-code">SYS.02</span>
+  <div class="sys-divider-line"></div>
+  <span class="sys-divider-title">Modules de Services</span>
+  <div class="sys-divider-line" style="background: linear-gradient(to left, rgba(245,196,0,0.3), transparent);"></div>
+  <span class="sys-divider-code">ACTIF</span>
+</div>
+
+<section id="modules">
+  <div class="section-header">
+    <div class="section-index">02</div>
+    <div class="section-meta">
+      <div class="section-code">// MODULES OPÉRATIONNELS</div>
+      <h2 class="section-title">Nos<br>Services</h2>
+    </div>
+  </div>
+  <div class="module-grid">
+    <div class="module featured">
+      <div class="module-id">MOD-01 // PRINCIPAL</div>
+      <span class="module-icon">⚙</span>
+      <div class="module-name">Diagnostic<br>& Réparation Moteur</div>
+      <p class="module-desc">Analyse complète par scanner OBD-II, détection des codes défaut, mécanique moteur, transmission, freinage et climatisation. Atelier équipé avec les dernières technologies de diagnostic automobiles.</p>
+      <div class="module-specs">
+        <div class="spec-row"><span class="spec-key">Équipement</span><span class="spec-val">Scanner Pro OBD-II</span></div>
+        <div class="spec-row"><span class="spec-key">Délai moyen</span><span class="spec-val">24-48H</span></div>
+        <div class="spec-row"><span class="spec-key">Véhicules couverts</span><span class="spec-val">Tous types</span></div>
+      </div>
+      <a href="https://wa.me/22890000000" class="module-action">DEMANDER UN DEVIS →</a>
+    </div>
+    <div class="module">
+      <div class="module-id">MOD-02</div>
+      <span class="module-icon">🔌</span>
+      <div class="module-name">Mécatronique</div>
+      <p class="module-desc">Systèmes électroniques embarqués, centralines, capteurs, câblage automobile.</p>
+      <a href="https://wa.me/22890000000" class="module-action">EN SAVOIR PLUS →</a>
+    </div>
+    <div class="module">
+      <div class="module-id">MOD-03</div>
+      <span class="module-icon">📋</span>
+      <div class="module-name">Conseil Achat</div>
+      <p class="module-desc">Inspection pré-achat, expertise technique, évaluation de l'état mécanique du véhicule.</p>
+      <a href="https://wa.me/22890000000" class="module-action">PRENDRE RDV →</a>
+    </div>
+    <div class="module" style="grid-column: 2 / span 2;">
+      <div class="module-id">MOD-04 // FORMATION</div>
+      <span class="module-icon">🎓</span>
+      <div class="module-name">Académie de Formation Professionnelle</div>
+      <p class="module-desc">Programmes certifiants en mécanique automobile, mécatronique et diagnostic. Pour étudiants, techniciens et professionnels en reconversion.</p>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem;">
+        <span style="font-family: var(--mono); font-size: 9px; color: var(--yellow); border: 1px solid rgba(245,196,0,0.3); padding: 4px 10px; letter-spacing: 0.1em;">CERTIFIÉ</span>
+        <span style="font-family: var(--mono); font-size: 9px; color: var(--white-dim); border: 1px solid rgba(240,237,228,0.1); padding: 4px 10px; letter-spacing: 0.1em;">PRATIQUE 70%</span>
+        <span style="font-family: var(--mono); font-size: 9px; color: var(--white-dim); border: 1px solid rgba(240,237,228,0.1); padding: 4px 10px; letter-spacing: 0.1em;">3 À 12 MOIS</span>
+      </div>
+      <a href="#academy" class="module-action">EXPLORER LES PROGRAMMES →</a>
+    </div>
+  </div>
+</section>
+
+<div class="sys-divider">
+  <span class="sys-divider-code">SYS.03</span>
+  <div class="sys-divider-line"></div>
+  <span class="sys-divider-title">Séquence Diagnostique</span>
+  <div class="sys-divider-line" style="background: linear-gradient(to left, rgba(245,196,0,0.3), transparent);"></div>
+  <span class="sys-divider-code">PIPELINE</span>
+</div>
+
+<section id="flow">
+  <div class="section-header">
+    <div class="section-index">03</div>
+    <div class="section-meta">
+      <div class="section-code">// PROTOCOLE D'INTERVENTION</div>
+      <h2 class="section-title">Comment<br>Ça Marche</h2>
+    </div>
+  </div>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="step-num">01</div>
+      <div class="step-title">Initier le Contact</div>
+      <p class="step-desc">Contactez-nous via WhatsApp ou le formulaire. Décrivez votre problème ou besoin.</p>
+    </div>
+    <div class="flow-step step-active">
+      <div class="step-num">02</div>
+      <div class="step-title">Scan & Analyse</div>
+      <p class="step-desc">Connexion OBD-II, lecture des codes défaut, diagnostic complet du système.</p>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">03</div>
+      <div class="step-title">Rapport Technique</div>
+      <p class="step-desc">Rapport clair avec les problèmes identifiés, solutions recommandées et devis.</p>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">04</div>
+      <div class="step-title">Intervention & Suivi</div>
+      <p class="step-desc">Réparation, formation ou conseil. Suivi post-intervention garanti.</p>
+    </div>
+  </div>
+</section>
+
+<section id="academy">
+  <div class="section-header">
+    <div class="section-index">04</div>
+    <div class="section-meta">
+      <div class="section-code">// ACADÉMIE DE FORMATION</div>
+      <h2 class="section-title">Devenez<br>Expert</h2>
+    </div>
+  </div>
+  <div class="academy-layout">
+    <div class="academy-left">
+      <p style="font-size: 15px; color: var(--white-dim); line-height: 1.7; font-weight: 300; margin-bottom: 2rem;">SPARK ACADEMY forme la prochaine génération de techniciens automobiles en Afrique de l'Ouest. Des programmes ancrés dans la pratique réelle, avec des formateurs issus de l'industrie.</p>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="padding: 16px; border-left: 3px solid var(--yellow); background: rgba(245,196,0,0.03);">
+          <div style="font-family: var(--cond); font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Formation pratique intensive</div>
+          <div style="font-size: 12px; color: var(--white-dim);">70% atelier, 30% théorie. Formateurs certifiés, équipements professionnels.</div>
+        </div>
+        <div style="padding: 16px; border-left: 3px solid rgba(245,196,0,0.3); background: rgba(245,196,0,0.02);">
+          <div style="font-family: var(--cond); font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Certification reconnue</div>
+          <div style="font-size: 12px; color: var(--white-dim);">Attestations valorisées par les employeurs du secteur automobile en Afrique.</div>
+        </div>
+        <div style="padding: 16px; border-left: 3px solid rgba(245,196,0,0.3); background: rgba(245,196,0,0.02);">
+          <div style="font-family: var(--cond); font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Suivi post-formation</div>
+          <div style="font-size: 12px; color: var(--white-dim);">Accompagnement dans l'insertion professionnelle et création d'atelier.</div>
+        </div>
+      </div>
+    </div>
+    <div class="academy-right">
+      <div class="academy-stat-panel">
+        <div style="font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--yellow);">// INDICATEURS ACADÉMIE</div>
+        <div class="stat-grid">
+          <div class="stat-cell"><span class="stat-val">200+</span><span class="stat-label">Diplômés</span></div>
+          <div class="stat-cell"><span class="stat-val">85%</span><span class="stat-label">Employabilité</span></div>
+          <div class="stat-cell"><span class="stat-val">6</span><span class="stat-label">Programmes</span></div>
+        </div>
+      </div>
+      <ul class="course-list">
+        <li class="course-item active-course"><span class="course-num">01</span><span class="course-name">Mécanique Automobile Générale</span><span class="course-duration">6 MOIS</span></li>
+        <li class="course-item"><span class="course-num">02</span><span class="course-name">Diagnostic Électronique OBD</span><span class="course-duration">3 MOIS</span></li>
+        <li class="course-item"><span class="course-num">03</span><span class="course-name">Mécatronique Avancée</span><span class="course-duration">12 MOIS</span></li>
+        <li class="course-item"><span class="course-num">04</span><span class="course-name">Gestion d'Atelier Automobile</span><span class="course-duration">4 MOIS</span></li>
+        <li class="course-item"><span class="course-num">05</span><span class="course-name">Climatisation & Électricité Auto</span><span class="course-duration">3 MOIS</span></li>
+      </ul>
+      <div class="enroll-block">
+        <div class="enroll-text">Prochaine session : <strong style="color: var(--white);">Juillet 2026</strong><br>Places limitées — inscription ouverte.</div>
+        <a href="https://wa.me/22890000000" class="enroll-btn">S'INSCRIRE →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sys-divider">
+  <span class="sys-divider-code">SYS.05</span>
+  <div class="sys-divider-line"></div>
+  <span class="sys-divider-title">Journal des Signaux Client</span>
+  <div class="sys-divider-line" style="background: linear-gradient(to left, rgba(245,196,0,0.3), transparent);"></div>
+  <span class="sys-divider-code">LOG</span>
+</div>
+
+<section id="signals">
+  <div class="section-header">
+    <div class="section-index">05</div>
+    <div class="section-meta">
+      <div class="section-code">// RETOURS TERRAIN</div>
+      <h2 class="section-title">Ce Qu'ils<br>Disent</h2>
+    </div>
+  </div>
+  <div class="signal-log">
+    <div class="signal-entry">
+      <div class="signal-id">SIGNAL-001 // CLIENT VÉHICULE</div>
+      <p class="signal-text">Mon moteur faisait un bruit bizarre depuis des semaines. En 2h, l'équipe avait identifié le problème avec leur scanner. Travail sérieux et transparent.</p>
+      <div class="signal-source">Kofi A.</div>
+      <div class="signal-role">PROPRIÉTAIRE VÉHICULE — LOMÉ</div>
+    </div>
+    <div class="signal-entry">
+      <div class="signal-id">SIGNAL-002 // ÉTUDIANT FORMATION</div>
+      <p class="signal-text">La formation mécatronique m'a ouvert des portes que je n'imaginais pas. Je suis maintenant technicien dans un garage à Accra. Merci SPARK ACADEMY.</p>
+      <div class="signal-source">Emmanuel T.</div>
+      <div class="signal-role">DIPLÔMÉ SPARK ACADEMY</div>
+    </div>
+    <div class="signal-entry">
+      <div class="signal-id">SIGNAL-003 // CONSEIL ACHAT</div>
+      <p class="signal-text">Avant d'acheter mon 4x4, j'ai demandé une expertise SPARK AUTO. Ils ont détecté des problèmes cachés que le vendeur n'avait pas déclarés. Investissement rentable.</p>
+      <div class="signal-source">Ama D.</div>
+      <div class="signal-role">CHEF D'ENTREPRISE — ABIDJAN</div>
+    </div>
+  </div>
+</section>
+
+<section id="initiate">
+  <div class="section-header">
+    <div class="section-index">06</div>
+    <div class="section-meta">
+      <div class="section-code">// INITIER UNE SÉQUENCE</div>
+      <h2 class="section-title">Démarrer<br>Le Diagnostic</h2>
+    </div>
+  </div>
+  <div class="contact-grid">
+    <div class="contact-left">
+      <p class="contact-desc">Que vous ayez un problème mécanique, souhaitiez vous former, ou cherchiez à consulter avant un achat — notre système est prêt à vous répondre.</p>
+      <div class="contact-channels">
+        <a href="https://wa.me/22890000000" class="channel">
+          <div class="channel-icon">💬</div>
+          <div class="channel-info"><div class="channel-name">WhatsApp Direct</div><div class="channel-handle">Réponse rapide — disponible 7j/7</div></div>
+          <div class="channel-arrow">→</div>
+        </a>
+        <a href="tel:+22890000000" class="channel">
+          <div class="channel-icon">📞</div>
+          <div class="channel-info"><div class="channel-name">Appel Téléphonique</div><div class="channel-handle">+228 90 00 00 00</div></div>
+          <div class="channel-arrow">→</div>
+        </a>
+        <div class="channel">
+          <div class="channel-icon">📍</div>
+          <div class="channel-info"><div class="channel-name">Atelier Physique</div><div class="channel-handle">Lomé, Togo — sur rendez-vous</div></div>
+          <div class="channel-arrow">→</div>
+        </div>
+      </div>
+    </div>
+    <div class="contact-right">
+      <div style="font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--yellow); margin-bottom: 1.5rem;">// FORMULAIRE DE DIAGNOSTIC</div>
+      <div class="form-field">
+        <label class="form-label">Nom complet</label>
+        <input type="text" class="form-input" placeholder="Votre nom">
+      </div>
+      <div class="form-field">
+        <label class="form-label">WhatsApp / Téléphone</label>
+        <input type="tel" class="form-input" placeholder="+228 XX XX XX XX">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Type de demande</label>
+        <select class="form-select">
+          <option value="">Sélectionner...</option>
+          <option>Diagnostic / Réparation véhicule</option>
+          <option>Consultation pré-achat</option>
+          <option>Inscription formation</option>
+          <option>Renseignements généraux</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" placeholder="Décrivez votre véhicule ou votre besoin..."></textarea>
+      </div>
+      <a href="https://wa.me/22890000000" style="display: block; text-align: center; text-decoration: none; font-family: var(--cond); font-size: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 16px; background: var(--yellow); color: var(--black); clip-path: polygon(16px 0%, 100% 0%, calc(100% - 16px) 100%, 0% 100%); transition: background 0.2s;">▶ ENVOYER VIA WHATSAPP</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">GARAGE <span>SP▲RK</span> AUTO</div>
+  <div class="footer-copy">© 2026 SPARK AUTO — LOMÉ, TOGO<br>Tous droits réservés — Système v4.2</div>
+  <div class="footer-status">SYSTÈME EN LIGNE</div>
+</footer>
+
+<script>
+  const gaugeVal = document.getElementById('gauge-val');
+  const values = [87, 91, 84, 89, 93, 86];
+  let vi = 0;
+  setInterval(() => { vi = (vi + 1) % values.length; gaugeVal.textContent = values[vi]; }, 2800);
+
+  const m1vals = ['4,200 RPM','3,850 RPM','4,100 RPM','4,400 RPM'];
+  const m2vals = ['92°C','88°C','95°C','91°C'];
+  const m3vals = ['3.8 BAR','3.6 BAR','4.0 BAR','3.7 BAR'];
+  const m4vals = ['14.2 V','13.8 V','14.5 V','14.1 V'];
+  let mi = 0;
+  setInterval(() => {
+    mi = (mi + 1) % 4;
+    document.getElementById('m1').textContent = m1vals[mi];
+    document.getElementById('m2').textContent = m2vals[mi];
+    document.getElementById('m3').textContent = m3vals[mi];
+    document.getElementById('m4').textContent = m4vals[mi];
+  }, 2200);
+
+  document.querySelectorAll('.course-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.course-item').forEach(i => i.classList.remove('active-course'));
+      item.classList.add('active-course');
+    });
+  });
+
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+    });
+  });
+</script>
+</body>
+</html>
